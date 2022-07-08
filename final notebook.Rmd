@@ -1,0 +1,125 @@
+---
+title: "final notebook"
+output: html_notebook
+---
+
+The functions of the run_analyis.R script is explained here
+
+GOAL:
+
+Obtain and clean data from a wearables study. Only data with mean or STD will be kept. A new tidy table will be created and saved as tidy_data.txt
+
+step one: import libraries
+
+
+```{r}
+## libraries needed for melt and cast
+library(reshape2)
+library(reshape)
+```
+
+step two: get data
+```{r}
+## get data
+filename <- "project_data.zip"
+
+## download data if it does not exist
+if (!file.exists(filename)){
+  url <- "https://d396qusza40orc.cloudfront.net/getdata%2Fprojectfiles%2FUCI%20HAR%20Dataset.zip"
+  download.file(url,filename, method = "curl")
+}
+
+## unzip if not unzipped
+if (!file.exists("UCI HAR Dataset")){
+  unzip(filename)
+}
+```
+
+step three: get labels
+
+```{r}
+## get activity labels
+activity_labels <- read.table("UCI HAR Dataset/activity_labels.txt")
+
+## get feature labels
+features <- read.table("UCI HAR Dataset/features.txt")
+head(features)
+```
+
+step four: select wanted features
+
+```{r}
+## select features with mean and std (except "meanFreq")
+features_wanted <-intersect(grep(".*mean.*|.*std.*", features[,2]), 
+                            grep(".*meanFreq.*", features[,2], invert = TRUE))
+
+## get names of features
+features_wanted.names <-features[features_wanted,2]
+## swap the "-" for "_"
+features_wanted.names <- gsub('-', '_', features_wanted.names)
+## remove "()"
+features_wanted.names <- gsub('[()]', '', features_wanted.names)
+head(features_wanted.names)
+```
+
+step five: load train data and combine it all
+
+```{r}
+## load train data
+train <- read.table("UCI HAR Dataset/train/X_train.txt")[features_wanted]
+train_activities <- read.table("UCI HAR Dataset/train/Y_train.txt")
+train_subjects <- read.table("UCI HAR Dataset/train/subject_train.txt")
+train <- cbind(train_subjects, train_activities, train)
+head(train)
+```
+
+step six: load test data and combine it all
+
+```{r}
+## load test data
+test <- read.table("UCI HAR Dataset/test/X_test.txt")[features_wanted]
+test_activities <- read.table("UCI HAR Dataset/test/Y_test.txt")
+test_subjects <- read.table("UCI HAR Dataset/test/subject_test.txt")
+test <- cbind(test_subjects, test_activities, test)
+head(test)
+```
+
+step seven: combine test and train and rename cols
+
+```{r}
+## merge rows
+all_data <- rbind(train, test)
+## rename cols
+colnames(all_data) <- c("subject", "activity", features_wanted.names)
+head(all_data)
+```
+
+step eight: relabel and set both activities and subjects as factors
+
+```{r}
+all_data$activity <- factor(all_data$activity, levels = activity_labels[,1], labels = activity_labels[,2])
+all_data$subject <- as.factor(all_data$subject)
+head(all_data)
+```
+step nine: melt data
+
+```{r}
+## melt the data
+all_data.melted <- melt(all_data, id = c("subject", "activity"))
+head(all_data.melted)
+```
+step ten: recast into a clean tidy data set with each column being the mean
+
+```{r}
+## cast into a tidy dataset
+tidy_data <- dcast(all_data.melted, subject + activity ~ variable, mean)
+head(tidy_data)
+```
+step eleven: save to "tiny_data.txt"
+
+```{r}
+write.table(tidy_data, "tidy_data.txt", row.names = FALSE)
+```
+
+This data is considered tidy because each row is one observation and each column is one variable. the variable names correlate to their measurements and more info can be found in the "features_info.txt" and the README within UCI HAR Dataset
+
